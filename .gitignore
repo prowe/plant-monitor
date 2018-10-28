@@ -2,3 +2,4 @@ build
 *.key
 *.pem
 data/*.der
+secrets.h

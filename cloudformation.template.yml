@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  CertificateArn:
+    Type: String
+    Default: "arn:aws:iot:us-east-1:913094122452:cert/6efb3ab94972154bc12ccb7e88397cf11442d7ebef42c940bff2ab31df7170c5"
+Resources:
+  ParlorPalmThing:
+    Type: AWS::IoT::Thing
+    Properties:
+      ThingName: parlor-palm
+  ParlorPalmPrincipalAttachment:
+    Type: AWS::IoT::ThingPrincipalAttachment
+    Properties:
+      ThingName: !Ref ParlorPalmThing
+      Principal: !Ref CertificateArn
