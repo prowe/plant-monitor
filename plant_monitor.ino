@@ -4,7 +4,8 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-const char* AWS_endpoint = "a2kuvr4lb7qxrw.iot.us-east-1.amazonaws.com";
+#define AWS_ENDPOINT "a2kuvr4lb7qxrw.iot.us-east-1.amazonaws.com"
+#define POLL_INTERVAL_MS 5000
 
 void setup_wifi() {
   delay(10);
@@ -38,7 +39,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 WiFiClientSecure espClient;
-PubSubClient client(AWS_endpoint, 8883, callback, espClient); //set  MQTT port number to 8883 as per //standard
+PubSubClient client(AWS_ENDPOINT, 8883, callback, espClient); //set  MQTT port number to 8883 as per //standard
 
 bool loadKeys() {
   if (!SPIFFS.begin()) {
@@ -111,48 +112,46 @@ void reconnect() {
   }
 }
 
+void ensureConnected() {
+  if (!client.connected()) {
+    reconnect();
+  }
+}
+
 void setup() {
   Serial.begin(9600);
   Serial.setDebugOutput(true);
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
   
   setup_wifi();
   delay(1000);
   if (!loadKeys()) {
     return;
   }
+  ensureConnected();
   
-  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 long lastMsg = 0;
 char msg[200];
-int value = 0;
 
-// the loop function runs over and over again forever
 void loop() {
-  //digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  //Serial.println("ON");
-  //delay(1000);                       // wait for a second
-  //digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-  //Serial.println("OFF");
-  //delay(1000);                       // wait for a second
-
-  if (!client.connected()) {
-    reconnect();
-  }
+  ensureConnected();
   client.loop();
 
   long now = millis();
-  if (now - lastMsg > 2000) {
+  if (now - lastMsg > POLL_INTERVAL_MS) {
     lastMsg = now;
-    ++value;
-    //snprintf (msg, 75, "hello world #%ld", value);
-    snprintf (msg, 200, "{\"state\": {\"desired\": {\"value\": %ld}}}", value);
+    
+    int moisture = analogRead(0);
+    snprintf (msg, 200, "{\"state\": {\"desired\": {\"moisture\": %ld}}}", moisture);
     Serial.print("Publish message: ");
     Serial.println(msg);
-    // client.publish("outTopic", msg);
     client.publish("$aws/things/parlor-palm/shadow/update", msg);
     
-    Serial.print("Heap: "); Serial.println(ESP.getFreeHeap()); //Low heap can cause problems
+    Serial.print("Heap: "); Serial.println(ESP.getFreeHeap());
   }
 }

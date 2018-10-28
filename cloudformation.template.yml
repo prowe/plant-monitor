@@ -13,3 +13,58 @@ Resources:
     Properties:
       ThingName: !Ref ParlorPalmThing
       Principal: !Ref CertificateArn
+  PlantStatisticsTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      TableName: PlantStatistics
+      AttributeDefinitions: 
+        - AttributeName: plant
+          AttributeType: S
+        - AttributeName: sampleDate
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: plant
+          KeyType: HASH
+        - AttributeName: sampleDate
+          KeyType: RANGE
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+  TopicRuleRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - iot.amazonaws.com
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+        - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
+  SaveParlorPalmRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      TopicRulePayload:
+        AwsIotSqlVersion: "2016-03-23"
+        RuleDisabled: false
+        Actions:
+          - DynamoDBv2:
+              RoleArn: !GetAtt TopicRuleRole.Arn
+              PutItem:
+                TableName: !Ref PlantStatisticsTable
+          - CloudwatchMetric:
+              RoleArn: !GetAtt TopicRuleRole.Arn
+              MetricNamespace: Plants
+              MetricName: parlor-palm-moisture
+              MetricValue: "${moisture}"
+              MetricUnit: None
+        Sql: |
+          select 
+            topic(3) as plant,
+            parse_time("yyyy-MM-dd'T'HH:mm:ssZ", (timestamp * 1000)) as sampleDate,
+            current.state.desired.*,
+          from "$aws/things/parlor-palm/shadow/update/documents"
